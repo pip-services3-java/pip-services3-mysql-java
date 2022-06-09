@@ -6,7 +6,6 @@ import org.junit.Test;
 import org.pipservices3.commons.config.ConfigParams;
 import org.pipservices3.commons.errors.ApplicationException;
 import org.pipservices3.mysql.fixtures.Dummy2PersistenceFixture;
-import org.pipservices3.mysql.fixtures.DummyPersistenceFixture;
 
 public class Dummy2MySqlPersistenceTest {
     Dummy2MySqlPersistence persistence;
