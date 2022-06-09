@@ -30,7 +30,7 @@ Go to the pom.xml file in Maven project and add dependencies::
 ## Develop
 
 For development you shall install the following prerequisites:
-* Java SE Development Kit 11+
+* Java SE Development Kit 18+
 * Eclipse Java Photon or another IDE of your choice
 * Docker
 * Apache Maven
