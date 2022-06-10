@@ -19,15 +19,128 @@ import org.pipservices3.mysql.connect.MySqlConnection;
 
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 
+/**
+ * Abstract persistence component that stores data in MySQL using plain driver.
+ * <p>
+ * This is the most basic persistence component that is only
+ * able to store data items of any type. Specific CRUD operations
+ * over the data items must be implemented in child classes by
+ * accessing <code>this._db</code> or <code>this._collection</code> properties.
+ * <p>
+ * ### Configuration parameters ###
+ *
+ * <pre>
+ * - table:                  (optional) MySQL table name
+ * - schema:                 (optional) MySQL schema name
+ * - connection(s):
+ *   - discovery_key:             (optional) a key to retrieve the connection from {@link org.pipservices3.components.connect.IDiscovery}
+ *   - host:                      host name or IP address
+ *   - port:                      port number (default: 3306)
+ *   - uri:                       resource URI or connection string with all parameters in it
+ * - credential(s):
+ *   - store_key:                 (optional) a key to retrieve the credentials from {@link org.pipservices3.components.auth.ICredentialStore}
+ *   - username:                  (optional) user name
+ *   - password:                  (optional) user password
+ * - options:
+ *   - connect_timeout:      (optional) number of milliseconds to wait before timing out when connecting a new client (default: 0)
+ *   - idle_timeout:         (optional) number of milliseconds a client must sit idle in the pool and not be checked out (default: 10000)
+ *   - max_pool_size:        (optional) maximum number of clients the pool should contain (default: 10)
+ *
+ * ### References ###
+ *
+ * - *:logger:*:*:1.0           (optional) {@link org.pipservices3.components.log.ILogger} components to pass log messages
+ * - *:discovery:*:*:1.0        (optional) {@link org.pipservices3.components.connect.IDiscovery} services
+ * - *:credential-store:*:*:1.0 (optional) Credential stores to resolve credentials
+ *
+ * </pre>
+ * <p>
+ * ### Example ###
+ * <pre>
+ * {@code
+ *  public class MyMySqlPersistence extends MySqlPersistence<MyData> {
+ *
+ *
+ *     public MyMySqlPersistence(Class<MyData> documentClass) {
+ *         super(documentClass, "mydata", null);
+ *     }
+ *
+ *     public MyData getByName(String correlationId, String name) {
+ *         MyData item;
+ *         var resultMap = new HashMap<String, Object>();
+ *
+ *         var query = "SELECT * FROM " + this.quotedTableName() + " WHERE name=" + "'" + name + "'";
+ *
+ *         try (var stmt = this._client.createStatement()) {
+ *             var rs = stmt.executeQuery(query);
+ *
+ *             if (rs.next())
+ *                 for (int columnIndex = 1; columnIndex <= rs.getMetaData().getColumnCount(); columnIndex++)
+ *                     resultMap.put(rs.getMetaData().getColumnName(columnIndex), rs.getObject(columnIndex));
+ *         } catch (SQLException ex) {
+ *             throw new RuntimeException(ex);
+ *         }
+ *
+ *         item = this.convertToPublic(resultMap);
+ *
+ *         return item;
+ *     }
+ *
+ *     public MyData set(String correlationId, MyData item) {
+ *         if (item == null)
+ *             return null;
+ *
+ *         var row = this.convertFromPublic(item);
+ *         var columns = this.generateColumns(row);
+ *         var params = this.generateParameters(row);
+ *         var setParams = this.generateSetParameters(row);
+ *
+ *         var query = "INSERT INTO " + this.quotedTableName() + " (" + columns + ") VALUES (" + params + ")";
+ *         query += " ON DUPLICATE KEY UPDATE " + setParams + ";";
+ *
+ *         MyData newItem;
+ *         var resultMap = new HashMap<String, Object>();
+ *
+ *         try (var stmt = this._client.createStatement()) {
+ *             stmt.execute(query);
+ *
+ *             query = "SELECT * FROM " + this.quotedTableName() + " WHERE id=" + "'" + item.getId().toString() + "'";
+ *
+ *             var rs = stmt.executeQuery(query);
+ *
+ *             // fetch results
+ *             if (rs.next())
+ *                 for (int columnIndex = 1; columnIndex <= rs.getMetaData().getColumnCount(); columnIndex++)
+ *                     resultMap.put(rs.getMetaData().getColumnName(columnIndex), rs.getObject(columnIndex));
+ *         } catch (SQLException ex) {
+ *             throw new RuntimeException(ex);
+ *         }
+ *
+ *         newItem = this.convertToPublic(resultMap);
+ *         return newItem;
+ *     }
+ * }
+ * ...
+ * var persistence = new MyMySqlPersistence(MyData.class);
+ * persistence.configure(ConfigParams.fromTuples(
+ *         "host", "localhost",
+ *         "port", 3306
+ * ));
+ *
+ * persistence.open(null);
+ *
+ * persistence.set("123", new MyData("1", "ABC", "content"));
+ * var item = persistence.getByName("123", "ABC");
+ * System.out.println(item.getName());
+ * }
+ *  </pre>
+ */
 public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IConfigurable, IOpenable, ICleanable {
 
     private static final ConfigParams _defaultConfig = ConfigParams.fromTuples(
@@ -386,11 +499,8 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
 
         var query = "DELETE FROM " + this.quotedTableName();
 
-        try {
-            var stmt = _client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             stmt.execute(query);
-
-            stmt.close();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -404,12 +514,8 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
         // Todo: include schema
         var query = "SHOW TABLES LIKE '" + this._tableName + "'";
 
-        Statement stmt;
-        ResultSet rs;
-
-        try {
-            stmt = this._client.createStatement();
-            rs = stmt.executeQuery(query);
+        try (var stmt = this._client.createStatement()) {
+            var rs = stmt.executeQuery(query);
 
             var exist = false;
 
@@ -531,8 +637,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
         List<T> items = new ArrayList<>();
         var resultObjects = new ArrayList<Map<String, Object>>();
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             // fetch all objects
@@ -559,8 +664,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
 
             long count = 0;
 
-            try {
-                var statement = this._client.createStatement();
+            try (var statement = this._client.createStatement()) {
                 var rs = statement.executeQuery(query);
 
                 if (rs.next())
@@ -592,8 +696,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
 
         long count = 0;
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             if (rs.next())
@@ -632,8 +735,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
         List<T> items = new ArrayList<>();
         var resultObjects = new ArrayList<Map<String, Object>>();
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             // fetch all objects
@@ -674,8 +776,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
 
         long count = 0;
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             if (rs.next())
@@ -695,8 +796,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
         T item;
         var resultMap = new HashMap<String, Object>();
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             // fetch all objects
@@ -736,8 +836,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
         var query = "INSERT INTO " + this.quotedTableName() + " (" + columns + ") VALUES (" + params + ")";
         //query += "; SELECT * FROM " + this.quotedTableName();
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             statement.execute(query);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
@@ -764,8 +863,7 @@ public class MySqlPersistence<T> implements IReferenceable, IUnreferenceable, IC
 
         long count = 0;
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             if (rs.next())

@@ -14,6 +14,36 @@ import org.pipservices3.commons.refer.ReferenceException;
 import org.pipservices3.commons.run.IOpenable;
 import org.pipservices3.components.log.CompositeLogger;
 
+/**
+ * MySQL connection using plain driver.
+ * <p>
+ * By defining a connection and sharing it through multiple persistence components
+ * you can reduce number of used database connections.
+ * <p>
+ * ### Configuration parameters ###
+ *
+ * <pre>
+ * - connection(s):
+ *   - discovery_key:             (optional) a key to retrieve the connection from {@link org.pipservices3.components.connect.IDiscovery}
+ *   - host:                      host name or IP address
+ *   - port:                      port number (default: 3306)
+ *   - uri:                       resource URI or connection string with all parameters in it
+ * - credential(s):
+ *   - store_key:                 (optional) a key to retrieve the credentials from {@link org.pipservices3.components.auth.ICredentialStore}
+ *   - username:                  user name
+ *   - password:                  user password
+ * - options:
+ *   - connect_timeout:      (optional) number of milliseconds to wait before timing out when connecting a new client (default: 0)
+ *   - idle_timeout:         (optional) number of milliseconds a client must sit idle in the pool and not be checked out (default: 10000)
+ *   - max_pool_size:        (optional) maximum number of clients the pool should contain (default: 10)
+ *
+ * ### References ###
+ *
+ * - *:logger:*:*:1.0          (optional) {@link org.pipservices3.components.log.ILogger} components to pass log messages
+ * - *:discovery:*:*:1.0        (optional) {@link org.pipservices3.components.connect.IDiscovery} services
+ * - *:credential-store:*:*:1.0 (optional) Credential stores to resolve credentials
+ * <pre/>
+ */
 public class MySqlConnection implements IReferenceable, IConfigurable, IOpenable {
 
     private final ConfigParams _defaultConfig = ConfigParams.fromTuples(
@@ -47,6 +77,11 @@ public class MySqlConnection implements IReferenceable, IConfigurable, IOpenable
      */
     protected String _databaseName;
 
+    /**
+     * Configures component by passing configuration parameters.
+     *
+     * @param config configuration parameters to be set.
+     */
     @Override
     public void configure(ConfigParams config) throws ConfigException {
         config = config.setDefaults(this._defaultConfig);

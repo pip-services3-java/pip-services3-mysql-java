@@ -6,15 +6,39 @@ import org.pipservices3.commons.errors.ApplicationException;
 import org.pipservices3.commons.errors.ConfigException;
 import org.pipservices3.commons.refer.IReferenceable;
 import org.pipservices3.commons.refer.IReferences;
-import org.pipservices3.commons.refer.ReferenceException;
 import org.pipservices3.components.auth.CredentialParams;
 import org.pipservices3.components.auth.CredentialResolver;
 import org.pipservices3.components.connect.ConnectionParams;
 import org.pipservices3.components.connect.ConnectionResolver;
 
 import java.util.List;
-import java.util.Objects;
 
+/**
+ * Helper class that resolves MySQL connection and credential parameters,
+ * validates them and generates a connection URI.
+ * <p>
+ * It is able to process multiple connections to MySQL cluster nodes.
+ * <p>
+ * ### Configuration parameters ###
+ *
+ * <pre>
+ * - connection(s):
+ *   - discovery_key:               (optional) a key to retrieve the connection from  {@link org.pipservices3.components.connect.IDiscovery}
+ *   - host:                        host name or IP address
+ *   - port:                        port number (default: 3306)
+ *   - database:                    database name
+ *   - uri:                         resource URI or connection string with all parameters in it
+ * - credential(s):
+ *   - store_key:                   (optional) a key to retrieve the credentials from {@link org.pipservices3.components.auth.ICredentialStore}
+ *   - username:                    user name
+ *   - password:                    user password
+ *
+ * ### References ###
+ *
+ * - *:discovery:*:*:1.0             (optional) {@link org.pipservices3.components.connect.IDiscovery} services
+ * - *:credential-store:*:*:1.0      (optional) Credential stores to resolve credentials
+ * <pre/>
+ */
 public class MySqlConnectionResolver implements IReferenceable, IConfigurable {
 
     /**

@@ -14,6 +14,80 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Abstract persistence component that stores data in MySQL
+ * and implements a number of CRUD operations over data items with unique ids.
+ * The data items must implement {@link IIdentifiable} interface.
+ * <p>
+ * In basic scenarios child classes shall only override {@link #getPageByFilter},
+ * {@link #getListByFilter} or {@link #deleteByFilter} operations with specific filter function.
+ * All other operations can be used out of the box.
+ * <p>
+ * In complex scenarios child classes can implement additional operations by
+ * accessing <code>this._collection</code> and <code>this._model</code> properties.
+ * <p>
+ * ### Configuration parameters ###
+ *
+ * <pre>
+ * - table:                  (optional) MySQL table name
+ * - schema:                 (optional) MySQL schema name
+ * - connection(s):
+ *   - discovery_key:             (optional) a key to retrieve the connection from {@link org.pipservices3.components.connect.IDiscovery}
+ *   - host:                      host name or IP address
+ *   - port:                      port number (default: 3306)
+ *   - uri:                       resource URI or connection string with all parameters in it
+ * - credential(s):
+ *   - store_key:                 (optional) a key to retrieve the credentials from {@link org.pipservices3.components.auth.ICredentialStore}
+ *   - username:                  (optional) user name
+ *   - password:                  (optional) user password
+ * - options:
+ *   - connect_timeout:      (optional) number of milliseconds to wait before timing out when connecting a new client (default: 0)
+ *   - idle_timeout:         (optional) number of milliseconds a client must sit idle in the pool and not be checked out (default: 10000)
+ *   - max_pool_size:        (optional) maximum number of clients the pool should contain (default: 10)
+ *  </pre>
+ * <p>
+ * ### References ###
+ * <p>
+ * - *:logger:*:*:1.0          (optional) {@link org.pipservices3.components.log.ILogger} components to pass log messages components to pass log messages
+ * - *:discovery:*:*:1.0        (optional) {@link org.pipservices3.components.connect.IDiscovery} services
+ * - *:credential-store:*:*:1.0 (optional) Credential stores to resolve credentials
+ * <p>
+ * ### Example ###
+ * <pre>
+ * {@code
+ *  public class MyMySqlPersistence extends IdentifiableMySqlPersistence<MyData, String> {
+ *
+ *     public MyMySqlPersistence() {
+ *         super(MyData.class, "dummies", null);
+ *     }
+ *
+ *     @Override
+ *     protected void defineSchema() {
+ *         this.clearSchema();
+ *         this.ensureSchema("CREATE TABLE `" + this._tableName + "` (id VARCHAR(32) PRIMARY KEY, `key` VARCHAR(50), `content` TEXT)");
+ *         this.ensureIndex(this._tableName + "_key", Map.of("key", 1), Map.of("unique", true));
+ *     }
+ *
+ *     private String composeFilter(FilterParams filter) {
+ *         filter = filter != null ? filter : new FilterParams();
+ *         String filterCondition = null;
+ *
+ *         var key = filter.getAsNullableString("key");
+ *
+ *         if (key != null)
+ *             filterCondition = "`key`='" + key + "'";
+ *
+ *         return filterCondition;
+ *
+ *     }
+ *
+ *     public DataPage<MyData> getPageByFilter(String correlationId, FilterParams filter, PagingParams paging) {
+ *         return super.getPageByFilter(correlationId, composeFilter(filter), paging, null, null);
+ *     }
+ * }
+ * }
+ * </pre>
+ */
 public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends MySqlPersistence<T>
         implements IWriter<T, K>, IGetter<T, K>, ISetter<T> {
 
@@ -61,8 +135,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         List<T> items = new ArrayList<>();
         var resultObjects = new ArrayList<Map<String, Object>>();
 
-        try {
-            var statement = this._client.createStatement();
+        try (var statement = this._client.createStatement()) {
             var rs = statement.executeQuery(query);
 
             // fetch all objects
@@ -99,8 +172,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         T item;
         var resultMap = new HashMap<String, Object>();
 
-        try {
-            var stmt = this._client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             var rs = stmt.executeQuery(query);
 
             if (rs.next())
@@ -120,6 +192,13 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         return item;
     }
 
+    /**
+     * Creates a data item.
+     *
+     * @param correlationId    (optional) transaction id to trace execution through call chain.
+     * @param item              an item to be created.
+     * @return a created item.
+     */
     @Override
     public T create(String correlationId, T item) {
         if (item == null)
@@ -178,8 +257,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         T newItem;
         var resultMap = new HashMap<String, Object>();
 
-        try {
-            var stmt = _client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             stmt.execute(query);
 
             query = "SELECT * FROM " + this.quotedTableName() + " WHERE id=" + "'" + item.getId().toString() + "'";
@@ -200,6 +278,13 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         return newItem;
     }
 
+    /**
+     * Updates a data item.
+     *
+     * @param correlationId    (optional) transaction id to trace execution through call chain.
+     * @param item              an item to be updated.
+     * @return the updated item.
+     */
     @Override
     public T update(String correlationId, T item) {
         if (item == null || item.getId() == null)
@@ -215,8 +300,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         T newItem;
         var resultMap = new HashMap<String, Object>();
 
-        try {
-            var stmt = _client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             stmt.execute(query);
 
             query = "SELECT * FROM " + this.quotedTableName() + " WHERE id=" + id;
@@ -259,8 +343,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         T newItem;
         var resultMap = new HashMap<String, Object>();
 
-        try {
-            var stmt = _client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             stmt.execute(query);
 
             query = "SELECT * FROM " + this.quotedTableName() + " WHERE id=" + strId + ";";
@@ -281,6 +364,13 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         return newItem;
     }
 
+    /**
+     * Deleted a data item by it's unique id.
+     *
+     * @param correlationId    (optional) transaction id to trace execution through call chain.
+     * @param id                an id of the item to be deleted
+     * @return the deleted item.
+     */
     @Override
     public T deleteById(String correlationId, K id) {
         var strId = "'" + id.toString() + "'";
@@ -291,8 +381,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
         T item;
         var resultMap = new HashMap<String, Object>();
 
-        try {
-            var stmt = _client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             var rs = stmt.executeQuery(query);
 
             // fetch all objects
@@ -321,8 +410,7 @@ public class IdentifiableMySqlPersistence<T extends IIdentifiable<K>, K> extends
 
         var count = 0;
 
-        try {
-            var stmt = _client.createStatement();
+        try (var stmt = this._client.createStatement()) {
             count = stmt.executeUpdate(query);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
