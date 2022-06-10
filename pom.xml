@@ -53,7 +53,7 @@
 
     <build>
         <sourceDirectory>${basedir}/src</sourceDirectory>
-<!--        <testSourceDirectory>${basedir}/test</testSourceDirectory>-->
+        <testSourceDirectory>${basedir}/test</testSourceDirectory>
         <outputDirectory>${basedir}/obj/src</outputDirectory>
         <testOutputDirectory>${basedir}/obj/test</testOutputDirectory>
         <testResources>
