@@ -96,7 +96,7 @@ if (-not (Test-Path "~/.m2/settings.xml")) {
 }
 
 # Deploy release to staging repository
-mvn clean deploy
+mvn clean deploy -DskipTests
 
 # Verify mvn deploy result
 if ($LastExitCode -ne 0) {
