@@ -16,4 +16,4 @@ COPY . .
 ENV MONGO_ENABLED=false
 
 # compile source code
-RUN mvn package
+RUN mvn package -DskipTests
